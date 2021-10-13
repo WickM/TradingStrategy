@@ -1,0 +1,77 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r}
+library(tidyquant)
+library(tidyverse)
+library(glue)
+
+library(httr)
+library(curl)
+
+httr::reset_config()
+set_config(config = use_proxy(username = Sys.getenv("igc_api_user"),
+password = Sys.getenv("igc_api_pw"), url = "proxy.wuestenrot.at:3128"))
+
+new_handle_plain = curl::new_handle
+
+new_handle_ntlm = function(){
+  handle = new_handle_plain()
+  handle_setopt(handle, .list = list(PROXYUSERPWD = glue("{Sys.getenv('igc_api_user')}:{Sys.getenv('igc_api_pw')}")))
+  return(handle)
+}
+
+rlang::env_unlock(env = asNamespace('curl'))
+rlang::env_binding_unlock(env = asNamespace('curl'))
+assign('new_handle', new_handle_ntlm, envir = asNamespace('curl'))
+rlang::env_binding_lock(env = asNamespace('curl'))
+rlang::env_lock(asNamespace('curl'))
+
+Sys.setenv("http_proxy" = curl::ie_get_proxy_for_url("http://orf.at"))
+Sys.setenv("https_proxy" = curl::ie_get_proxy_for_url("http://orf.at"))
+
+```
+
+```{r RSelenium}
+library(RSelenium)
+library(XML)
+library(rvest)
+
+remDr <- remoteDriver(
+  remoteServerAddr = "34.139.203.39",
+  port = 4444L,
+  browserName = "chrome"
+)
+
+remDr$open()
+remDr$navigate("https://boersespiel.dad.at/Aktien")
+
+aktien_table <- remDr$findElement(using = "xpath", value = "//*[@id='indices-1-mobile']")
+elemtxt <- aktien_table$getElementAttribute("outerHTML")[[1]]
+
+webElem <- remDr$findElement(using = "css selector", 
+                             value = "#wrapper > div > main > section > div.container > div > div > ul > li:nth-child(6)")
+webElem$getElementAttribute("outerHTML")
+webElem$click(2)
+
+webElem <- remDr$findElement(using = "xpath", value = "//*[@id='indices-1-mobile_next']")
+webElem$click()
+
+aktien_table <- remDr$findElement(using = "xpath", value = "//*[@id='indices-1-mobile']")
+read_html(aktien_table$getElementAttribute("outerHTML")[[1]]) %>%  html_table()
+```
+
+```{r}
+
+library(rvest)
+
+dadat_aktien <- read_html("https://boersespiel.dad.at/Aktien")
+
+aktien <- dadat_aktien %>% html_nodes(xpath='/html/body/div/div/main/section/div[1]/div/div/div[2]/div[1]/div[2]/div/div/div/table/tbody/tr[1]')
+
+```

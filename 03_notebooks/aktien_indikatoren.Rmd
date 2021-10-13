@@ -1,0 +1,46 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+library(tidyquant)
+library(tidyverse)
+```
+
+
+```{r}
+source("02_R/global_functions.R")
+dat_stock <- get_new_stock(path_stck_data = here::here("01_data/stocks.RData"), user = Sys.getenv('igc_api_user'), pw = Sys.getenv('igc_api_pw'))
+```
+
+Trend
+- EMA 10 EMA(x, n = 10, wilder = FALSE, ratio = NULL, ...)
+- EMA 20 EMA(x, n = 20, wilder = FALSE, ratio = NULL, ...)
+- MACD MACD(x, nFast = 12, nSlow = 26, nSig = 9, maType, percent = TRUE, ...)
+
+- RSI RSI(price, n = 14, maType, ...) RSI > 70 overbougth < 30 oversold
+- ROC % Change hoher Wert indikator für oversold
+
+- volatility
+- BBands BBands(HLC, n = 20, maType, sd = 2, ...)
+
+Return Performance
+- Cumulative Return periodReturn 
+- Sharpe Ratio SharpeRatio
+
+```{r}
+
+stk <- dat_stock %>% 
+  group_by(symbol) %>% 
+   tq_mutate(select = adjusted, 
+             mutate_fun = EMA, 
+             n     = "10",
+             col_rename = "EMA_10")
+
+
+MACD?
+```
+

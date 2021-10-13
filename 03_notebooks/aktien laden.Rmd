@@ -1,0 +1,180 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+library(tidyquant)
+library(tidyverse)
+library(glue)
+
+library(httr)
+library(curl)
+
+httr::reset_config()
+set_config(config = use_proxy(username = Sys.getenv("igc_api_user"),
+password = Sys.getenv("igc_api_pw"), url = "proxy.wuestenrot.at:3128"))
+
+new_handle_plain = curl::new_handle
+
+new_handle_ntlm = function(){
+  handle = new_handle_plain()
+  handle_setopt(handle, .list = list(PROXYUSERPWD = glue("{Sys.getenv('igc_api_user')}:{Sys.getenv('igc_api_pw')}")))
+  return(handle)
+}
+
+rlang::env_unlock(env = asNamespace('curl'))
+rlang::env_binding_unlock(env = asNamespace('curl'))
+assign('new_handle', new_handle_ntlm, envir = asNamespace('curl'))
+rlang::env_binding_lock(env = asNamespace('curl'))
+rlang::env_lock(asNamespace('curl'))
+
+Sys.setenv("http_proxy" = curl::ie_get_proxy_for_url("http://orf.at"))
+Sys.setenv("https_proxy" = curl::ie_get_proxy_for_url("http://orf.at"))
+
+```
+
+```{r ATX}
+atx_symbol <- read.csv2("01_data/atx.csv")
+
+
+atx <- tidyquant::tq_get(atx_symbol$Symbol,
+                      get  = "stock.prices",
+                      from =  Sys.Date() - 365,
+                      to   = Sys.Date())
+```
+
+```{r DOW jones}
+dow_jones_symbol <- tidyquant::tq_index("DOW")
+
+dow <- tidyquant::tq_get(dow_jones_symbol$symbol,
+                      get  = "stock.prices",
+                      from =  Sys.Date() - 365,
+                      to   = Sys.Date())
+```
+
+
+```{r}
+library("jsonlite")
+
+json_file <- 'https://datahub.io/core/nasdaq-listings/datapackage.json'
+json_data <- fromJSON(paste(readLines(json_file), collapse=""))
+
+path_to_file = json_data$resources$path[3]
+data <- read.csv(url(path_to_file))
+
+```
+
+```{r}
+library(yaml)
+yaml_stocks <- yaml::read_yaml(here::here("01_data/stocks.yaml"))
+
+
+indizes <- yaml_stocks$indices %>% 
+  purrr::transpose() %>% 
+  pluck("name") %>% 
+  flatten_chr()
+
+dadat_indices <- c("DAX", "MDAX", "EURO STOXX 50", "DOW JONES", "NASDAQ 100")
+
+companies <- yaml_stocks$companies %>%
+  purrr::keep(., ~ {any(pluck(.x,"indices") %in% dadat_indices)})
+
+atx_symbol <- read.csv2("01_data/atx.csv")
+
+for(atx_ind in  seq(1, length(atx_symbol$Symbol))) {
+  
+  atx_temp <- list(
+    "name" = atx_symbol$Firmenname[atx_ind], 
+    "Symbol" = atx_symbol$Symbol[atx_ind], 
+    "country" = "Austria",
+    "indices" = "ATX", 
+    "industries" = NA, 
+    "symbols" = list(list("yahoo" = atx_symbol$Symbol[atx_ind])),
+    "metadata" = NA,
+    "isins" = NA
+  )
+  
+  companies <- companies %>%  
+  purrr::prepend(list(atx_temp))
+  
+}
+
+saveRDS(companies, file = here::here("01_data/stocks.RDS"))
+
+symbols <- map_chr(companies, ~ pluck(.x, "symbols", 1, "yahoo", .default = NA))
+
+dadat_stock <- tidyquant::tq_get(symbols,
+                      get  = "stock.prices",
+                      from =  Sys.Date() - 365,
+                      to   = Sys.Date())
+
+stock_name <-tibble(name = map_chr(companies, ~ pluck(.x, "name", .default = NA)),
+                    symbol =  map_chr(companies, ~ pluck(.x, "symbols", 1, "yahoo", .default = NA))
+)
+
+dadat_stock$name <- stock_name$name [match(dadat_stock$symbol, stock_name$symbol)]
+
+save(companies, dadat_stock, file = here::here("01_data/stocks.RData"))
+
+```
+
+```{r}
+get_new_stock <- function(path_stck_data, user, pw) {
+  
+  require(tidyquant)
+  require(tidyverse)
+  require(glue)
+
+  require(curl)
+  require(rlang)
+  
+  #setProxy
+
+  new_handle_plain = curl::new_handle
+
+  new_handle_ntlm = function(){
+    handle = new_handle_plain()
+    handle_setopt(handle, .list = list(PROXYUSERPWD = glue("{user}:{pw}")))
+    return(handle)
+  }
+  
+  rlang::env_unlock(env = asNamespace('curl'))
+  rlang::env_binding_unlock(env = asNamespace('curl'))
+  assign('new_handle', new_handle_ntlm, envir = asNamespace('curl'))
+  rlang::env_binding_lock(env = asNamespace('curl'))
+  rlang::env_lock(asNamespace('curl'))
+  
+  Sys.setenv("http_proxy" = curl::ie_get_proxy_for_url("http://orf.at"))
+  Sys.setenv("https_proxy" = curl::ie_get_proxy_for_url("http://orf.at"))
+  
+  #get stocks
+  load(path_stck_data)
+  
+  symbols <- map_chr(companies, ~ pluck(.x, "symbols", 1, "yahoo", .default = NA))
+  from_date <- max(dadat_stock$date)
+
+  dadat_stock_new <- tidyquant::tq_get(symbols,
+                        get  = "stock.prices",
+                        from =  from_date,
+                        to   = Sys.Date())
+  
+  dadat_stock <- bind_rows(dadat_stock, dadat_stock_new)
+  
+  stock_name <-tibble(name = map_chr(companies, ~ pluck(.x, "name", .default = NA)),
+                    symbol =  map_chr(companies, ~ pluck(.x, "symbols", 1, "yahoo", .default = NA),),
+                    country =  map_chr(companies, ~ pluck(.x, "country", .default = NA))
+)
+  
+  dadat_stock$name <- stock_name$name [match(dadat_stock$symbol, stock_name$symbol)]
+  dadat_stock$country <- stock_name$country [match(dadat_stock$symbol, stock_name$symbol)]
+  
+  return(dadat_stock)
+}
+
+dat_stock <- get_new_stock(path_stck_data = here::here("01_data/stocks.RData"), user = Sys.getenv('igc_api_user'), pw = Sys.getenv('igc_api_pw'))
+
+```
+
