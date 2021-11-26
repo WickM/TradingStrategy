@@ -6,7 +6,6 @@ get_new_stock <- function(path_stck_data, user, pw) {
   require(tidyquant)
   require(tidyverse)
   require(glue)
-  
   require(curl)
   require(rlang)
   
@@ -50,8 +49,14 @@ get_new_stock <- function(path_stck_data, user, pw) {
   dadat_stock$name <- stock_name$name [match(dadat_stock$symbol, stock_name$symbol)]
   dadat_stock$country <- stock_name$country [match(dadat_stock$symbol, stock_name$symbol)]
   
+  dadat_stock <- dadat_stock %>% 
+    distinct(symbol, date, .keep_all = TRUE) %>% 
+    arrange(desc(symbol, date))
+  
   save(dadat_stock, companies, file = path_stck_data)
   
   return(dadat_stock)
 }
 #dat_stock <<- get_new_stock(path_stck_data = here::here("01_data/stocks.RData"), user = Sys.getenv('igc_api_user'), pw = Sys.getenv('igc_api_pw'))
+
+
