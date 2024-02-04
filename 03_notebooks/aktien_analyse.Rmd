@@ -16,6 +16,7 @@ load("01_data/stocks.RData")
 ```
 
 # Crossing von ema 5 und sma 20
+
 Wie stark ist der push welcher durch das überschreiten der sma 20 linie durch die ema 5 linie erzeugt wird?
 
 unterscheidet sich der d Return an x Tagen vor und nach dem überschreiten von dem narmalen return
@@ -65,21 +66,16 @@ stock_simulation %>%
   geom_col(aes(x = label, y = mean))+
   geom_hline(yintercept = mean(stk_indikatoren$p_dailyReturn))
 ```
-scheint so als gäge es einen Effekt die durchscnlittlichen gewinne sind am höchsten wenn aktien am tag des Crossings wieder verkauft werden. Der Gewinn ist im durchschnitt an diesem Tag am größten.
-Das führt zu der Frage wie was ist ein zuverlässiger inidkator für ein crossing im kommenden Tag.
 
+scheint so als gäge es einen Effekt die durchscnlittlichen gewinne sind am höchsten wenn aktien am tag des Crossings wieder verkauft werden. Der Gewinn ist im durchschnitt an diesem Tag am größten. Das führt zu der Frage wie was ist ein zuverlässiger inidkator für ein crossing im kommenden Tag.
 
-
-## Aktien mit den größten p return 
+## Aktien mit den größten p return
 
 ```{r}
 max_return <- stk_indikatoren %>% 
   
 
 ```
-
-
-
 
 ```{r}
 #Strategie 
@@ -139,7 +135,6 @@ stk_portfolio %>%
     scale_color_tq()
 ```
 
-
 ```{r}
 stk_portfolio %>%
   
@@ -173,14 +168,4 @@ temp <- stk_indikatoren %>%
   arrange(desc(date)) %>% 
   tq_mutate(select = adjusted, dailyReturn)
 
-
-
-
-
 ```
-
-```{r}
-
-
-```
-
